@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "__mutex_base": "cpp",
+        "thread": "cpp",
+        "condition_variable": "cpp",
+        "mutex": "cpp",
+        "iostream": "cpp",
+        "chrono": "cpp"
+    }
+}
