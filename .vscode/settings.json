@@ -5,6 +5,7 @@
         "condition_variable": "cpp",
         "mutex": "cpp",
         "iostream": "cpp",
-        "chrono": "cpp"
+        "chrono": "cpp",
+        "ostream": "cpp"
     }
 }
