@@ -5,6 +5,7 @@
 #include <string>
 #include <chrono>
 #include <ctime>
+#include <mutex>
 
 using namespace std;
 
@@ -14,6 +15,8 @@ struct requestStructure {
     string page_requested;
 };
 
+mutex mtx;
+
 const int BUFFER_SIZE = 5;
 queue<requestStructure> msg_queue;
 string webPages[10] = {"google.com", "yahoo.com", "bing.com", "facebook.com", "twitter.com", "linkedin.com", "amazon.com", "instagram.com", "reddit.com", "netflix.com"};
@@ -22,12 +25,11 @@ sem_t empty_slots;
 sem_t full_slots;
 sem_t mutex_lock;
 
-
 int request_id = 0;
 
 void listen() {
+    int queue_size = 0;
     while (true) {
-
         this_thread::sleep_for(chrono::seconds(1));
 
         requestStructure new_request;
@@ -42,12 +44,13 @@ void listen() {
         cout << "Request " << request_id << " added to queue." << endl;
         request_id++;
 
+        queue_size = msg_queue.size();
         sem_post(&mutex_lock);
         sem_post(&full_slots);
     }
 }
 
-void do_request(int thread_id) {
+void do_request(int thread_id, int &queue_size) {
     while (true) {
         sem_wait(&full_slots);
         sem_wait(&mutex_lock);
@@ -57,8 +60,14 @@ void do_request(int thread_id) {
         }
         requestStructure req = msg_queue.front();
         msg_queue.pop();
+
+        queue_size = msg_queue.size();
         sem_post(&mutex_lock);
+        sem_post(&empty_slots);
+
+        mtx.lock(); // Acquire the lock
         cout << "thread " << thread_id << " completed request " << req.request_id << " requesting webpage " << req.page_requested << endl;
+        mtx.unlock(); // Release the lock
     }
 }
 
@@ -74,8 +83,17 @@ int main() {
     // create worker threads
     int num_threads = 4;
     thread worker_threads[num_threads];
+    int queue_size = 0;
     for (int i = 0; i < num_threads; i++) {
-        worker_threads[i] = thread(do_request, i);
+        worker_threads[i] = thread([](int id, int &size){ do_request(id, size); }, i, ref(queue_size));
+    }
+
+    // periodically print queue size
+    while (true) {
+        this_thread::sleep_for(chrono::seconds(1));
+        mtx.lock(); // Acquire the lock
+        cout << "Queue size: " << queue_size << endl;
+        mtx.unlock(); // Release the lock
     }
 
     // wait for threads to finish (should never happen)

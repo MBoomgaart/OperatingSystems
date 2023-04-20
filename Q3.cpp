@@ -5,6 +5,7 @@
 #include <string>
 #include <chrono>
 #include <ctime>
+#include <mutex>
 
 using namespace std;
 
@@ -13,6 +14,8 @@ struct requestStructure {
     string ip_address;
     string page_requested;
 };
+
+mutex mtx;
 
 const int BUFFER_SIZE = 5;
 queue<requestStructure> msg_queue;
@@ -58,7 +61,10 @@ void do_request(int thread_id) {
         requestStructure req = msg_queue.front();
         msg_queue.pop();
         sem_post(&mutex_lock);
+
+        mtx.lock(); // Acquire the lock
         cout << "thread " << thread_id << " completed request " << req.request_id << " requesting webpage " << req.page_requested << endl;
+        mtx.unlock(); // Release the lock
     }
 }
 
@@ -75,7 +81,7 @@ int main() {
     int num_threads = 4;
     thread worker_threads[num_threads];
     for (int i = 0; i < num_threads; i++) {
-        worker_threads[i] = thread(do_request, i);
+        worker_threads[i] = thread([](int id){ do_request(id); }, i);
     }
 
     // wait for threads to finish (should never happen)
