@@ -5,6 +5,7 @@
 #include <string>
 #include <chrono>
 #include <ctime>
+#include <fcntl.h> // for O_CREAT
 
 using namespace std;
 
@@ -18,10 +19,9 @@ const int BUFFER_SIZE = 5;
 queue<requestStructure> msg_queue;
 string webPages[10] = {"google.com", "yahoo.com", "bing.com", "facebook.com", "twitter.com", "linkedin.com", "amazon.com", "instagram.com", "reddit.com", "netflix.com"};
 
-sem_t empty_slots;
-sem_t full_slots;
-sem_t mutex_lock;
-
+sem_t *empty_slots;
+sem_t *full_slots;
+sem_t *mutex_lock;
 
 int request_id = 0;
 
@@ -35,39 +35,39 @@ void listen() {
         new_request.ip_address = "";
         new_request.page_requested = webPages[rand() % 10];
 
-        sem_wait(&empty_slots);
-        sem_wait(&mutex_lock);
+        sem_wait(empty_slots);
+        sem_wait(mutex_lock);
 
         msg_queue.push(new_request);
         cout << "Request " << request_id << " added to queue." << endl;
         request_id++;
 
-        sem_post(&mutex_lock);
-        sem_post(&full_slots);
+        sem_post(mutex_lock);
+        sem_post(full_slots);
     }
 }
 
 void do_request(int thread_id) {
     while (true) {
-        sem_wait(&full_slots);
-        sem_wait(&mutex_lock);
+        sem_wait(full_slots);
+        sem_wait(mutex_lock);
         if (msg_queue.empty()) {
-            sem_post(&mutex_lock);
+            sem_post(mutex_lock);
             continue;
         }
         requestStructure req = msg_queue.front();
         msg_queue.pop();
         cout << "thread " << thread_id << " completed request " << req.request_id << " requesting webpage " << req.page_requested << endl;
-        sem_post(&mutex_lock);
-
+        sem_post(mutex_lock);
+        sem_post(empty_slots);
     }
 }
 
 int main() {
-    // initialize semaphores
-    sem_init(&empty_slots, 0, BUFFER_SIZE);
-    sem_init(&full_slots, 0, 0);
-    sem_init(&mutex_lock, 0, 1);
+    // create named semaphores
+    empty_slots = sem_open("/empty_slots", O_CREAT, 0644, BUFFER_SIZE);
+    full_slots = sem_open("/full_slots", O_CREAT, 0644, 0);
+    mutex_lock = sem_open("/mutex_lock", O_CREAT, 0644, 1);
 
     // create listen thread
     thread listen_thread(listen);
@@ -85,10 +85,15 @@ int main() {
         worker_threads[i].join();
     }
 
-    // destroy semaphores
-    sem_destroy(&empty_slots);
-    sem_destroy(&full_slots);
-    sem_destroy(&mutex_lock);
+    // close named semaphores
+    sem_close(empty_slots);
+    sem_close(full_slots);
+    sem_close(mutex_lock);
+
+    // unlink named semaphores
+    sem_unlink("/empty_slots");
+    sem_unlink("/full_slots");
+    sem_unlink("/mutex_lock");
 
     return 0;
 }
