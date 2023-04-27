@@ -59,6 +59,7 @@ void do_request(int thread_id) {
         msg_queue.pop();
         cout << "thread " << thread_id << " completed request " << req.request_id << " requesting webpage " << req.page_requested << endl;
         sem_post(&mutex_lock);
+        sem_post (&empty_slots);
 
     }
 }
